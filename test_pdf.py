@@ -1,20 +1,38 @@
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+
 import pdfplumber
-import os
 
-pdf_file = "sample.pdf"
 
-if os.path.exists(pdf_file):
-    print("✅ PDF Found")
+class PDFProcessor:
 
-    with pdfplumber.open(pdf_file) as pdf:
+    @staticmethod
+    def extract_text(pdf_path):
+        """
+        📄 Extract text from PDF file
+        """
+
         text = ""
 
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
 
-        print(text[:5000])
+                print(f"📂 Opening PDF: {pdf_path}")
+                print(f"📑 Total Pages: {len(pdf.pages)}")
 
-else:
-    print("❌ PDF Not Found")
+                for page_num, page in enumerate(pdf.pages, start=1):
+
+                    print(f"📖 Reading Page {page_num}...")
+
+                    page_text = page.extract_text()
+
+                    if page_text:
+                        text += page_text + "\n"
+
+                print("✅ PDF Reading Successful")
+
+            return text
+
+        except Exception as e:
+            print(f"❌ Error Reading PDF: {e}")
+            return ""

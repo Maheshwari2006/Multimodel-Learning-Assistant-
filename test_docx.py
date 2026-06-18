@@ -1,13 +1,17 @@
 from docx import Document
 import os
+import sys
 
-doc_file = "sample.docx"   # Change if your filename is different
+# Enable UTF-8 output
+sys.stdout.reconfigure(encoding='utf-8')
 
-print("Current Folder:", os.getcwd())
-print("\nFiles in Folder:")
+doc_file = "sample.docx"
+
+print("📁 Current Folder:", os.getcwd())
+print("\n📂 Files in Folder:")
 print(os.listdir())
 
-print("\nChecking File...")
+print("\n🔍 Checking File...")
 
 if os.path.exists(doc_file):
     print("✅ File Exists")
@@ -16,7 +20,7 @@ if os.path.exists(doc_file):
     try:
         doc = Document(doc_file)
 
-        print("\n===== DOCUMENT CONTENT =====\n")
+        print("\n📖 ===== DOCUMENT CONTENT =====\n")
 
         for para in doc.paragraphs:
             text = para.text.strip()
