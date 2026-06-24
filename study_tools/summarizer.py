@@ -1,24 +1,25 @@
 import ollama
 
-class RAGQuestionAnswering:
+class Summarizer:
 
     def __init__(self, model_name="llama3"):
+
         self.model_name = model_name
 
-    def answer_question(self, context, question):
+    def summarize(self, text):
 
         prompt = f"""
-You are a helpful AI assistant.
+You are an intelligent study assistant.
 
-Use ONLY the provided context to answer the question.
+Analyze the given content and provide:
 
-Context:
-{context}
+1. Short Summary
+2. Key Points
+3. Important Concepts
+4. Easy Explanation
 
-Question:
-{question}
-
-Answer:
+Content:
+{text}
 """
 
         response = ollama.chat(
