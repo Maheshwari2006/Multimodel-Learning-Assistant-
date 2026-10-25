@@ -7,7 +7,7 @@ from backend.database.crud import get_user_by_email
 from backend.auth.jwt_handler import verify_token
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/auth/login"
+    tokenUrl="/login"
 )
 
 
