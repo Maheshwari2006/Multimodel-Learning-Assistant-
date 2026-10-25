@@ -1,166 +1,140 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../../api/authApi";
+import "./Auth.css";
 
-function Register() {
-    const navigate = useNavigate();
+export default function Register() {
+  const navigate = useNavigate();
 
-    const [formData, setFormData] = useState({
-        username: "",
-        email: "",
-        password: "",
-    });
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
-    };
+    try {
+      await registerUser({ username, email, password });
+      setSuccess("Account created successfully! Redirecting to login...");
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+      window.setTimeout(() => navigate("/"), 1200);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(
+        typeof detail === "string"
+          ? detail
+          : "Registration failed. Please check your details and try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        setLoading(true);
-        setError("");
-        setSuccess("");
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="auth-brand-icon" aria-hidden="true">✦</div>
+        <h1>Create account</h1>
+        <p className="auth-subtitle">
+          Start your smarter learning journey
+        </p>
 
-        try {
-            console.log("Sending:", formData);
+        <form className="auth-form" onSubmit={handleRegister}>
+          <input
+            className="auth-input"
+            type="text"
+            placeholder="Username"
+            aria-label="Username"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
 
-            const data = await registerUser(formData);
+          <input
+            className="auth-input"
+            type="email"
+            placeholder="Email address"
+            aria-label="Email address"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-            console.log("Response:", data);
-
-            setSuccess("Registration Successful!");
-
-            setTimeout(() => {
-                navigate("/");
-            }, 1500);
-
-        } catch (err) {
-            console.error("Register Error:", err);
-
-            if (err.response) {
-                console.log("Status:", err.response.status);
-                console.log("Data:", err.response.data);
-
-                setError(
-                    err.response.data.detail ||
-                    JSON.stringify(err.response.data)
-                );
-            } else if (err.request) {
-                console.log("Request:", err.request);
-                setError("Cannot connect to FastAPI server.");
-            } else {
-                console.log("Message:", err.message);
-                setError(err.message);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div
-            style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                minHeight: "100vh",
-                background: "#f3f4f6",
-            }}
-        >
-            <form
-                onSubmit={handleSubmit}
-                style={{
-                    width: "420px",
-                    background: "#fff",
-                    padding: "30px",
-                    borderRadius: "10px",
-                    boxShadow: "0 0 10px rgba(0,0,0,0.2)",
-                }}
+          <div className="auth-password-wrap">
+            <input
+              className="auth-input"
+              type={showPassword ? "text" : "password"}
+              placeholder="Create password"
+              aria-label="Create password"
+              autoComplete="new-password"
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              className="auth-eye"
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
             >
-                <h2 style={{ textAlign: "center" }}>Register</h2>
+              {showPassword ? "HIDE" : "SHOW"}
+            </button>
+          </div>
 
-                <input
-                    type="text"
-                    name="username"
-                    placeholder="Username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    required
-                    style={inputStyle}
-                />
+          {error && <p className="auth-error">{error}</p>}
+          {success && <p className="auth-success">{success}</p>}
 
-                <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    style={inputStyle}
-                />
+          <button
+            className="auth-submit"
+            type="submit"
+            disabled={loading || Boolean(success)}
+          >
+            {loading ? "Creating account..." : "Create account →"}
+          </button>
+        </form>
 
-                <input
-                    type="password"
-                    name="password"
-                    placeholder="Password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    style={inputStyle}
-                />
+        <p className="auth-switch">
+          Already have an account? <Link to="/">Sign in</Link>
+        </p>
+      </section>
 
-                {error && (
-                    <p style={{ color: "red", textAlign: "center" }}>
-                        {error}
-                    </p>
-                )}
-
-                {success && (
-                    <p style={{ color: "green", textAlign: "center" }}>
-                        {success}
-                    </p>
-                )}
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                        width: "100%",
-                        padding: "12px",
-                        background: "#2563eb",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                    }}
-                >
-                    {loading ? "Registering..." : "Register"}
-                </button>
-
-                <p style={{ textAlign: "center", marginTop: "20px" }}>
-                    Already have an account?{" "}
-                    <Link to="/">Login</Link>
-                </p>
-            </form>
+      <section className="auth-visual">
+        <div className="auth-visual-heading">
+          <h2>
+            Learn smarter.
+            <span>Achieve more.</span>
+          </h2>
+          <p>YOUR PERSONAL AI LEARNING SPACE</p>
         </div>
-    );
+
+        <div className="auth-illustration">
+          <div className="auth-orbit" />
+          <div className="auth-orbit auth-orbit-two" />
+          <div className="auth-book" aria-hidden="true">📚</div>
+
+          <div className="auth-feature feature-one">📄 Upload Materials</div>
+          <div className="auth-feature feature-two">💬 AI Chat</div>
+          <div className="auth-feature feature-three">📝 Summary</div>
+          <div className="auth-feature feature-four">🗂️ Flashcards</div>
+          <div className="auth-feature feature-five">🧠 Quiz</div>
+          <div className="auth-feature feature-six">💡 Study Plan</div>
+        </div>
+
+        <p className="auth-visual-note">
+          Turn your study material into summaries, quizzes, flashcards,
+          and a personalized study plan.
+        </p>
+      </section>
+    </main>
+  );
 }
-
-const inputStyle = {
-    width: "100%",
-    padding: "12px",
-    marginBottom: "15px",
-    border: "1px solid #ccc",
-    borderRadius: "5px",
-    boxSizing: "border-box",
-};
-
-export default Register;

@@ -1,0 +1,81 @@
+
+/* Fix text colors without changing the existing design */
+
+.auth-page {
+  color: #ffffff;
+  background-color: #07132e;
+}
+
+.auth-card {
+  color: #15234e;
+  background-color: #f7f7ff;
+}
+
+.auth-card h1 {
+  color: #15234e !important;
+}
+
+.auth-card p {
+  color: #75809e;
+}
+
+.auth-card .auth-subtitle,
+.auth-card .auth-switch {
+  color: #75809e !important;
+}
+
+.auth-card .auth-switch a,
+.auth-card .auth-forgot a {
+  color: #7044f5 !important;
+}
+
+.auth-card input {
+  color: #1d2a50 !important;
+  background-color: #ffffff !important;
+}
+
+.auth-card input::placeholder {
+  color: #929bb3 !important;
+  opacity: 1;
+}
+
+.auth-card .auth-eye {
+  color: #727d9b !important;
+}
+
+.auth-card .auth-submit {
+  color: #ffffff !important;
+  background: linear-gradient(100deg, #4387ff, #7932f5) !important;
+}
+
+.auth-visual {
+  color: #ffffff;
+}
+
+.auth-visual-heading h2 {
+  color: #ffffff !important;
+}
+
+.auth-visual-heading h2 span {
+  color: #c5a3ff !important;
+}
+
+.auth-visual-heading p,
+.auth-visual-note {
+  color: #b5c0df !important;
+}
+
+.auth-feature {
+  color: #f5f6ff !important;
+  background-color: rgba(36, 52, 107, 0.9);
+}
+
+.auth-error {
+  color: #b42338 !important;
+  background-color: #fff0f1 !important;
+}
+
+.auth-success {
+  color: #176b46 !important;
+  background-color: #e9fbf1 !important;
+}
