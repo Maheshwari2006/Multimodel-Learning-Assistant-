@@ -15,20 +15,13 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    payload = verify_token(token)
-
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
-
-    email = payload.get("sub")
+    # verify_token returns the email stored in the token's "sub" claim, or None if the token is invalid/expired.
+    email = verify_token(token)
 
     if email is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload"
+            detail="Invalid or expired token"
         )
 
     user = get_user_by_email(db, email)

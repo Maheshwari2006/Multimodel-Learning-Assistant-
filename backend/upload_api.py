@@ -3,9 +3,10 @@ import os
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from pypdf import PdfReader
 
+from backend.auth.oauth2 import get_current_user
 from study_tools.flashcard_generator import FlashcardGenerator
 
 
@@ -20,7 +21,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Existing endpoint: save an uploaded file
 @router.post("/")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), user=Depends(get_current_user)):
     filename = os.path.basename(file.filename or "")
 
     if not filename:
@@ -41,7 +42,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 # New endpoint: upload a PDF and generate flashcards
 @router.post("/flashcards")
-async def generate_flashcards_from_pdf(file: UploadFile = File(...)):
+async def generate_flashcards_from_pdf(file: UploadFile = File(...), user=Depends(get_current_user)):
     filename = os.path.basename(file.filename or "")
 
     if not filename.lower().endswith(".pdf"):

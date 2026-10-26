@@ -1,11 +1,16 @@
-
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import Dashboard from "../pages/Dashboard";
+import Upload from "../pages/Upload";
+import Chat from "../pages/Chat";
+import Summary from "../pages/Summary";
+import Quiz from "../pages/Quiz";
 import Flashcards from "../pages/flashcards";
-import FeaturePage from "../pages/FeaturePages";
+import StudyPlan from "../pages/StudyPlan";
+import Recommendations from "../pages/Recommendations";
+import AppLayout from "../components/common/AppLayout";
 import ProtectedRoute from "../components/common/ProtectedRoute";
 
 function AppRoutes() {
@@ -15,85 +20,19 @@ function AppRoutes() {
             <Route path="/" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Protected dashboard */}
-            <Route
-                path="/dashboard"
-                element={
-                    <ProtectedRoute>
-                        <Dashboard />
-                    </ProtectedRoute>
-                }
-            />
+            {/* Everything else shares one layout: sidebar + top bar */}
+            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/upload" element={<Upload />} />
+                <Route path="/chat" element={<Chat />} />
+                <Route path="/summary" element={<Summary />} />
+                <Route path="/quiz" element={<Quiz />} />
+                <Route path="/flashcards" element={<Flashcards />} />
+                <Route path="/study-plan" element={<StudyPlan />} />
+                <Route path="/recommendations" element={<Recommendations />} />
+            </Route>
 
-            {/* Existing flashcards page */}
-            <Route
-                path="/flashcards"
-                element={
-                    <ProtectedRoute>
-                        <Flashcards />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* Upload */}
-            <Route
-                path="/upload"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="upload" />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* AI Chat */}
-            <Route
-                path="/chat"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="chat" />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* Summary */}
-            <Route
-                path="/summary"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="summary" />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* Quiz */}
-            <Route
-                path="/quiz"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="quiz" />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* Study Plan */}
-            <Route
-                path="/study-plan"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="studyPlan" />
-                    </ProtectedRoute>
-                }
-            />
-
-            {/* Recommendations */}
-            <Route
-                path="/recommendations"
-                element={
-                    <ProtectedRoute>
-                        <FeaturePage type="recommendations" />
-                    </ProtectedRoute>
-                }
-            />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
     );
 }

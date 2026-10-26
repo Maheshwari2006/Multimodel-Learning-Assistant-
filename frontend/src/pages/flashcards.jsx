@@ -1,334 +1,288 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+    FiCheck, FiChevronLeft, FiChevronRight, FiEdit2, FiLayers, FiPlus, FiRefreshCw, FiRepeat, FiShuffle, FiTrash2, FiX,
+} from "react-icons/fi";
+import useDocuments from "../hooks/useDocuments";
+import {
+    deleteDeck, generateDeck, getDeck, listDecks, markCard, renameDeck, resetDeck,
+} from "../api/learningApi";
+import { errorMessage } from "../api/api";
+import DocPicker from "../components/ui/DocPicker";
+import { EmptyState, LANGUAGES, PageHeader, SkeletonCard } from "../components/ui/common";
+import { useToast } from "../components/ui/Toast";
 
-import { useState } from "react";
-import api from "../api/api";
+const FILTERS = [["all", "All"], ["new", "New"], ["review", "Needs review"], ["known", "Known"]];
+
+function shuffled(n) {
+    const a = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 
 export default function Flashcards() {
-  const [text, setText] = useState("");
-  const [pdfFile, setPdfFile] = useState(null);
-  const [cards, setCards] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [revealed, setRevealed] = useState({});
+    const toast = useToast();
+    const [params, setParams] = useSearchParams();
+    const { docs, loading: docsLoading } = useDocuments();
+    const [decks, setDecks] = useState(null);
+    const [deck, setDeck] = useState(null);                   // {id, title, cards:[{id,question,answer,status}]}
+    const [creating, setCreating] = useState(false);
+    // create form
+    const [source, setSource] = useState("docs");
+    const [selected, setSelected] = useState([]);
+    const [text, setText] = useState("");
+    const [count, setCount] = useState(10);
+    const [language, setLanguage] = useState("english");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    // study state
+    const [order, setOrder] = useState([]);
+    const [pos, setPos] = useState(0);
+    const [flipped, setFlipped] = useState(false);
+    const [filter, setFilter] = useState("all");
+    const [renaming, setRenaming] = useState(null);
 
-  // Generate flashcards from manually entered notes
-  const generateFlashcards = async (event) => {
-    event.preventDefault();
+    const loadDecks = useCallback(() => listDecks().then(setDecks).catch((e) => { setDecks([]); setError(errorMessage(e)); }), []);
+    useEffect(() => { loadDecks(); }, [loadDecks]);
 
-    if (!text.trim()) {
-      setError("Please enter your study material first.");
-      setSuccess("");
-      return;
-    }
+    const openDeck = useCallback(async (id) => {
+        try {
+            const d = await getDeck(id);
+            setDeck(d);
+            setOrder(d.cards.map((_, i) => i));
+            setPos(0);
+            setFlipped(false);
+            setFilter("all");
+            setCreating(false);
+            setParams({ deck: id });
+        } catch (err) { toast.error(errorMessage(err)); }
+    }, [toast, setParams]);
 
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    setCards([]);
-    setRevealed({});
+    useEffect(() => {
+        const id = params.get("deck");
+        if (id) openDeck(Number(id));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    try {
-      const response = await api.post("/flashcards", null, {
-        params: { text: text.trim() },
-      });
+    const visible = useMemo(
+        () => (deck ? order.filter((i) => filter === "all" || deck.cards[i].status === filter) : []),
+        [deck, order, filter]
+    );
+    const card = deck && visible.length ? deck.cards[visible[Math.min(pos, visible.length - 1)]] : null;
 
-      const data = response.data;
-      const generated = Array.isArray(data)
-        ? data
-        : data.flashcards ?? data.cards ?? [];
+    const go = useCallback((delta) => {
+        setFlipped(false);
+        setPos((p) => Math.min(Math.max(p + delta, 0), Math.max(visible.length - 1, 0)));
+    }, [visible.length]);
 
-      if (!Array.isArray(generated) || generated.length === 0) {
-        setError("No flashcards were returned. Please try different notes.");
-        return;
-      }
+    const mark = useCallback(async (status) => {
+        if (!card) return;
+        const id = card.id;
+        const previous = card.status;
+        setDeck((d) => ({ ...d, cards: d.cards.map((c) => (c.id === id ? { ...c, status } : c)) }));
+        try {
+            await markCard(id, status);
+            loadDecks();
+            if (filter === "all") go(1);
+        } catch (err) {
+            setDeck((d) => ({ ...d, cards: d.cards.map((c) => (c.id === id ? { ...c, status: previous } : c)) }));
+            toast.error(errorMessage(err));
+        }
+    }, [card, filter, go, loadDecks, toast]);
 
-      setCards(generated);
-      setSuccess("Flashcards generated successfully!");
-    } catch (err) {
-      console.error("Flashcard generation failed:", err);
-      setError(
-        err.response?.data?.detail ||
-          "Unable to generate flashcards. Check that FastAPI and Ollama are running."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+        if (!card) return undefined;
+        const onKey = (e) => {
+            if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(e.target.tagName)) return;
+            if (e.key === " " || e.key === "Enter") { e.preventDefault(); setFlipped((f) => !f); }
+            if (e.key === "ArrowRight") go(1);
+            if (e.key === "ArrowLeft") go(-1);
+            if (e.key.toLowerCase() === "k") mark("known");
+            if (e.key.toLowerCase() === "r") mark("review");
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [card, go, mark]);
 
-  // Generate flashcards directly from an uploaded PDF
-  const generateFromPDF = async (event) => {
-    event.preventDefault();
+    const create = async () => {
+        setBusy(true);
+        setError("");
+        try {
+            const d = await generateDeck(source === "docs" ? { document_ids: selected, count, language } : { text, count, language });
+            toast.success(`Created "${d.title}" with ${d.cards.length} cards.`);
+            await loadDecks();
+            await openDeck(d.id);
+        } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+    };
 
-    if (!pdfFile) {
-      setError("Please select a PDF file first.");
-      setSuccess("");
-      return;
-    }
+    const remove = async (d) => {
+        if (!window.confirm(`Delete deck "${d.title}" and its review progress?`)) return;
+        try {
+            await deleteDeck(d.id);
+            if (deck?.id === d.id) { setDeck(null); setParams({}); }
+            loadDecks();
+        } catch (err) { toast.error(errorMessage(err)); }
+    };
 
-    if (
-      !pdfFile.name.toLowerCase().endsWith(".pdf") ||
-      (pdfFile.type && pdfFile.type !== "application/pdf")
-    ) {
-      setError("Please select a valid PDF file.");
-      setSuccess("");
-      return;
-    }
+    const reset = async () => {
+        if (!window.confirm("Reset all review progress for this deck?")) return;
+        try { const d = await resetDeck(deck.id); setDeck(d); setPos(0); loadDecks(); } catch (err) { toast.error(errorMessage(err)); }
+    };
 
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    setCards([]);
-    setRevealed({});
+    const saveName = async () => {
+        const title = renaming.title.trim();
+        if (!title) return;
+        try {
+            await renameDeck(renaming.id, title);
+            if (deck?.id === renaming.id) setDeck((d) => ({ ...d, title }));
+            setRenaming(null);
+            loadDecks();
+        } catch (err) { toast.error(errorMessage(err)); }
+    };
 
-    try {
-      const formData = new FormData();
-      formData.append("file", pdfFile);
+    const showForm = creating || (!deck && decks !== null && decks.length === 0);
+    const canCreate = source === "docs" ? selected.length > 0 : text.trim().length > 20;
+    const counts = deck ? {
+        known: deck.cards.filter((c) => c.status === "known").length,
+        review: deck.cards.filter((c) => c.status === "review").length,
+    } : { known: 0, review: 0 };
 
-      const response = await api.post("/upload/flashcards", formData);
+    return (
+        <>
+            <PageHeader title="Flashcards" subtitle="Turn documents or notes into decks, flip through them and mark what you know. Progress is saved.">
+                {!showForm && <button className="btn primary" onClick={() => { setCreating(true); setDeck(null); setParams({}); }}><FiPlus /> New deck</button>}
+            </PageHeader>
 
-      const generated = response.data?.flashcards;
+            <div className="split">
+                <aside className="card stack" style={{ gap: 8 }}>
+                    <div className="label">Your decks</div>
+                    {decks === null ? <SkeletonCard lines={2} /> : decks.length === 0 ? <span className="faint">No decks yet.</span> : decks.map((d) => (
+                        <div key={d.id} className={`session ${deck?.id === d.id ? "on" : ""}`} role="button" tabIndex={0}
+                             onClick={() => openDeck(d.id)} onKeyDown={(e) => e.key === "Enter" && openDeck(d.id)}>
+                            <FiLayers style={{ flex: "none" }} />
+                            {renaming?.id === d.id ? (
+                                <input className="input" autoFocus value={renaming.title} aria-label="Deck name" style={{ padding: "4px 8px" }}
+                                       onClick={(e) => e.stopPropagation()} onChange={(e) => setRenaming({ ...renaming, title: e.target.value })}
+                                       onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") saveName(); if (e.key === "Escape") setRenaming(null); }} />
+                            ) : (
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div className="truncate" title={d.title}>{d.title}</div>
+                                    <div className="progress" style={{ height: 5, marginTop: 4 }}><span style={{ width: `${d.total ? (d.known / d.total) * 100 : 0}%` }} /></div>
+                                    <span className="faint" style={{ fontSize: 12 }}>{d.known}/{d.total} known{d.review ? ` · ${d.review} to review` : ""}</span>
+                                </div>
+                            )}
+                            {renaming?.id === d.id ? (
+                                <>
+                                    <button className="btn icon sm" aria-label="Save name" onClick={(e) => { e.stopPropagation(); saveName(); }}><FiCheck /></button>
+                                    <button className="btn icon sm" aria-label="Cancel" onClick={(e) => { e.stopPropagation(); setRenaming(null); }}><FiX /></button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className="btn icon sm" aria-label={`Rename ${d.title}`} onClick={(e) => { e.stopPropagation(); setRenaming({ id: d.id, title: d.title }); }}><FiEdit2 /></button>
+                                    <button className="btn icon sm" aria-label={`Delete ${d.title}`} onClick={(e) => { e.stopPropagation(); remove(d); }}><FiTrash2 /></button>
+                                </>
+                            )}
+                        </div>
+                    ))}
+                </aside>
 
-      if (!Array.isArray(generated) || generated.length === 0) {
-        setError("The PDF was processed, but no flashcards were returned.");
-        return;
-      }
+                <div>
+                    {showForm && (
+                        <div className="card stack rise">
+                            <h2 style={{ margin: 0 }}>Create a deck</h2>
+                            <div className="segmented">
+                                <button className={source === "docs" ? "on" : ""} onClick={() => setSource("docs")}>From documents</button>
+                                <button className={source === "text" ? "on" : ""} onClick={() => setSource("text")}>From pasted notes</button>
+                            </div>
+                            {source === "docs" ? (
+                                <DocPicker docs={docs} loading={docsLoading} selected={selected} onChange={setSelected} />
+                            ) : (
+                                <textarea className="textarea" rows={7} value={text} aria-label="Notes" placeholder="Paste your notes here…" onChange={(e) => setText(e.target.value)} />
+                            )}
+                            <div className="grid c2" style={{ gap: 12 }}>
+                                <div className="field">
+                                    <label htmlFor="fc-count">Number of cards</label>
+                                    <select id="fc-count" className="select" value={count} onChange={(e) => setCount(Number(e.target.value))}>
+                                        {[5, 10, 15, 20, 30].map((n) => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label htmlFor="fc-lang">Language</label>
+                                    <select id="fc-lang" className="select" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                                        {LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            {error && <div className="alert err" role="alert">{error}</div>}
+                            <div className="row">
+                                <button className="btn primary" disabled={!canCreate || busy} onClick={create}>
+                                    {busy ? <><span className="spinner" /> Writing cards…</> : "Generate deck"}
+                                </button>
+                                {decks?.length > 0 && <button className="btn" onClick={() => setCreating(false)}>Cancel</button>}
+                            </div>
+                        </div>
+                    )}
 
-      setCards(generated);
-      setSuccess(
-        `Generated ${generated.length} flashcards from ${pdfFile.name}.`
-      );
-    } catch (err) {
-      console.error("PDF flashcard generation failed:", err);
-      setError(
-        err.response?.data?.detail ||
-          "Unable to generate flashcards from this PDF. Check the backend terminal."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+                    {!showForm && !deck && (
+                        <div className="card"><EmptyState icon={<FiLayers />} title="Pick a deck or create one">Select a deck on the left to start studying.</EmptyState></div>
+                    )}
 
-  const getQuestion = (card) =>
-    card.question ?? card.front ?? card.term ?? "Question";
+                    {!showForm && deck && (
+                        <div className="stack rise">
+                            <div className="row between">
+                                <div>
+                                    <h2 style={{ margin: 0 }}>{deck.title}</h2>
+                                    <span className="faint">{counts.known} known · {counts.review} need review · {deck.cards.length - counts.known - counts.review} new</span>
+                                </div>
+                                <div className="row">
+                                    <button className="btn sm" onClick={() => { setOrder(shuffled(deck.cards.length)); setPos(0); setFlipped(false); }}><FiShuffle /> Shuffle</button>
+                                    <button className="btn sm" onClick={() => { setOrder(deck.cards.map((_, i) => i)); setPos(0); setFlipped(false); }}><FiRepeat /> Original order</button>
+                                    <button className="btn sm" onClick={reset}><FiRefreshCw /> Reset progress</button>
+                                </div>
+                            </div>
 
-  const getAnswer = (card) =>
-    card.answer ?? card.back ?? card.definition ?? "No answer provided.";
+                            <div className="progress" aria-label="Known cards"><span style={{ width: `${(counts.known / deck.cards.length) * 100}%` }} /></div>
 
-  // Toggle the answer for a particular card
-  const toggleCard = (index) => {
-    setRevealed((previous) => ({
-      ...previous,
-      [index]: !previous[index],
-    }));
-  };
+                            <div className="row">
+                                {FILTERS.map(([v, l]) => (
+                                    <button key={v} className={`chip ${filter === v ? "on" : ""}`} aria-pressed={filter === v} onClick={() => { setFilter(v); setPos(0); setFlipped(false); }}>{l}</button>
+                                ))}
+                            </div>
 
-  const buttonStyle = {
-    marginTop: 14,
-    padding: "12px 22px",
-    background: loading ? "#9ca3af" : "#2563eb",
-    color: "white",
-    border: "none",
-    borderRadius: 8,
-    cursor: loading ? "wait" : "pointer",
-    fontSize: 16,
-    fontWeight: 600,
-  };
+                            {!card ? (
+                                <div className="card"><EmptyState icon={<FiCheck />} title="No cards in this filter">Try another filter, or reset the deck's progress.</EmptyState></div>
+                            ) : (
+                                <>
+                                    <div className={`flip ${flipped ? "flipped" : ""}`}>
+                                        <div className="flip-inner" role="button" tabIndex={0} aria-label={flipped ? "Showing answer. Press to show question" : "Showing question. Press to show answer"}
+                                             onClick={() => setFlipped((f) => !f)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setFlipped((f) => !f))}>
+                                            <div className="flip-face front" aria-hidden={flipped}><small>Question · click to flip</small>{card.question}</div>
+                                            <div className="flip-face back" aria-hidden={!flipped}><small>Answer</small>{card.answer}</div>
+                                        </div>
+                                    </div>
 
-  return (
-    <div
-      style={{
-        maxWidth: 1000,
-        margin: "0 auto",
-        padding: 24,
-        color: "#1f2937",
-      }}
-    >
-      <h1>📚 Flashcards</h1>
-      <p>
-        Generate question-and-answer flashcards from your notes or PDF study
-        materials.
-      </p>
+                                    <div className="row between">
+                                        <button className="btn" onClick={() => go(-1)} disabled={pos === 0}><FiChevronLeft /> Previous</button>
+                                        <span className="faint">Card {Math.min(pos, visible.length - 1) + 1} of {visible.length}
+                                            {card.status !== "new" && <> · <span className={`badge ${card.status === "known" ? "ok" : "warn"}`}>{card.status === "known" ? "Known" : "Needs review"}</span></>}
+                                        </span>
+                                        <button className="btn" onClick={() => go(1)} disabled={pos >= visible.length - 1}>Next <FiChevronRight /></button>
+                                    </div>
 
-      {/* PDF upload section */}
-      <section
-        style={{
-          marginTop: 24,
-          padding: 20,
-          border: "1px solid #d1d5db",
-          borderRadius: 12,
-          background: "#f9fafb",
-        }}
-      >
-        <h2>📄 Generate from PDF</h2>
-        <p>Select a PDF containing your study material.</p>
-
-        <form onSubmit={generateFromPDF}>
-          <label
-            htmlFor="pdf-file"
-            style={{
-              display: "block",
-              fontWeight: 600,
-              marginBottom: 10,
-            }}
-          >
-            Choose PDF file
-          </label>
-
-          <input
-            id="pdf-file"
-            type="file"
-            accept=".pdf,application/pdf"
-            disabled={loading}
-            onChange={(event) => {
-              setPdfFile(event.target.files?.[0] || null);
-              setError("");
-              setSuccess("");
-            }}
-            style={{
-              display: "block",
-              maxWidth: "100%",
-              marginBottom: 8,
-            }}
-          />
-
-          {pdfFile && (
-            <p style={{ fontSize: 14, color: "#4b5563" }}>
-              Selected: {pdfFile.name}
-            </p>
-          )}
-
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? "Generating..." : "Upload PDF & Generate"}
-          </button>
-        </form>
-      </section>
-
-      {/* Manual notes section */}
-      <section style={{ marginTop: 32 }}>
-        <h2>📝 Generate from Notes</h2>
-
-        <form onSubmit={generateFlashcards}>
-          <label
-            htmlFor="study-material"
-            style={{
-              display: "block",
-              fontWeight: 600,
-              marginBottom: 8,
-            }}
-          >
-            Enter your notes or study material
-          </label>
-
-          <textarea
-            id="study-material"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Paste your notes here..."
-            rows={8}
-            disabled={loading}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 14,
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              fontSize: 16,
-              resize: "vertical",
-            }}
-          />
-
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? "Generating..." : "Generate from Notes"}
-          </button>
-        </form>
-      </section>
-
-      {/* Status messages */}
-      {error && (
-        <p
-          role="alert"
-          style={{
-            color: "#dc2626",
-            marginTop: 20,
-            padding: 12,
-            background: "#fef2f2",
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </p>
-      )}
-
-      {success && (
-        <p
-          role="status"
-          style={{
-            color: "#166534",
-            marginTop: 20,
-            padding: 12,
-            background: "#f0fdf4",
-            borderRadius: 8,
-          }}
-        >
-          {success}
-        </p>
-      )}
-
-      {/* Generated flashcards */}
-      {cards.length > 0 && (
-        <section style={{ marginTop: 32 }}>
-          <h2>Generated Flashcards ({cards.length})</h2>
-          <p>Click any card to reveal or hide its answer.</p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-              gap: 16,
-            }}
-          >
-            {cards.map((card, index) => (
-              <button
-                type="button"
-                key={card.id ?? index}
-                onClick={() => toggleCard(index)}
-                aria-expanded={Boolean(revealed[index])}
-                style={{
-                  minHeight: 170,
-                  padding: 20,
-                  textAlign: "left",
-                  border: revealed[index]
-                    ? "2px solid #2563eb"
-                    : "1px solid #d1d5db",
-                  borderRadius: 12,
-                  background: revealed[index] ? "#eff6ff" : "white",
-                  color: "#1f2937",
-                  cursor: "pointer",
-                  overflowWrap: "anywhere",
-                }}
-              >
-                <small>
-                  CARD {index + 1} ·{" "}
-                  {revealed[index] ? "ANSWER" : "QUESTION"}
-                </small>
-
-                <h3>
-                  {revealed[index]
-                    ? getAnswer(card)
-                    : getQuestion(card)}
-                </h3>
-
-                <small>
-                  {revealed[index]
-                    ? "Click to hide answer"
-                    : "Click to reveal answer"}
-                </small>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  );
+                                    <div className="row" style={{ justifyContent: "center" }}>
+                                        <button className="btn danger" onClick={() => mark("review")}><FiX /> Needs review</button>
+                                        <button className="btn primary" onClick={() => mark("known")}><FiCheck /> I know this</button>
+                                    </div>
+                                    <p className="faint" style={{ textAlign: "center", margin: 0 }}>Keyboard: Space flips · ← → move · K known · R needs review</p>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </>
+    );
 }

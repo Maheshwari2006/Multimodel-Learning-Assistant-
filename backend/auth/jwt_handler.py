@@ -1,9 +1,11 @@
+import os
+
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
 # IMPORTANT:
 # Change this key before production
-SECRET_KEY = "MULTIMODAL_LEARNING_ASSISTANT_SECRET_KEY"
+SECRET_KEY = os.getenv("SECRET_KEY", "MULTIMODAL_LEARNING_ASSISTANT_SECRET_KEY")
 
 ALGORITHM = "HS256"
 

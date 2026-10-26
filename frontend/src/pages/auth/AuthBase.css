@@ -1,0 +1,37 @@
+/* Base layout for the Login / Register pages.
+   The uploaded project's Auth.css only contained colour overrides, so this file supplies the layout
+   those class names need. It is imported BEFORE Auth.css, so your colour rules still win. */
+.auth-page {
+  min-height: 100vh; display: grid; grid-template-columns: minmax(340px, 480px) 1fr; align-items: stretch;
+  padding: 0; margin: 0;
+  background-image: radial-gradient(700px 500px at 80% 10%, rgba(121, 50, 245, 0.35), transparent 60%),
+    radial-gradient(600px 500px at 0% 100%, rgba(67, 135, 255, 0.25), transparent 60%);
+}
+.auth-card { margin: auto; width: min(420px, calc(100% - 32px)); padding: 36px 32px; border-radius: 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); text-align: center; }
+.auth-brand-icon { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 16px; display: grid; place-items: center; font-size: 24px; color: #fff; background: linear-gradient(100deg, #4387ff, #7932f5); }
+.auth-card h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.02em; }
+.auth-card p { margin: 0; }
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; text-align: left; }
+.auth-input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid #dfe3f3; font-size: 15px; }
+.auth-input:focus { outline: 2px solid #7044f5; outline-offset: 1px; }
+.auth-password-wrap { position: relative; }
+.auth-password-wrap .auth-input { padding-right: 68px; }
+.auth-eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: none; cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 6px 8px; }
+.auth-submit { border: 0; border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.auth-submit:disabled { opacity: 0.7; cursor: wait; }
+.auth-error, .auth-success { padding: 10px 12px; border-radius: 10px; font-size: 14px; text-align: left; }
+.auth-divider { margin: 22px 0 14px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #929bb3; }
+.auth-switch a { font-weight: 700; text-decoration: none; }
+.auth-visual { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 28px; padding: 40px; text-align: center; }
+.auth-visual-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 48px); line-height: 1.1; letter-spacing: -0.02em; }
+.auth-visual-heading h2 span { display: block; }
+.auth-visual-heading p { margin: 10px 0 0; letter-spacing: 0.18em; font-size: 12px; }
+.auth-illustration { position: relative; width: min(440px, 80vw); aspect-ratio: 1; }
+.auth-orbit { position: absolute; inset: 14%; border-radius: 50%; border: 1px dashed rgba(197, 163, 255, 0.45); }
+.auth-orbit-two { inset: 0; border-color: rgba(120, 160, 255, 0.3); }
+.auth-book { position: absolute; inset: 0; margin: auto; width: 96px; height: 96px; display: grid; place-items: center; font-size: 44px; border-radius: 28px; background: linear-gradient(135deg, rgba(67, 135, 255, 0.5), rgba(121, 50, 245, 0.5)); box-shadow: 0 0 60px rgba(121, 50, 245, 0.5); }
+.auth-feature { position: absolute; padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(8px); }
+.feature-one { top: 4%; left: 30%; } .feature-two { top: 22%; right: 0; } .feature-three { bottom: 22%; right: 2%; }
+.feature-four { bottom: 4%; left: 28%; } .feature-five { bottom: 24%; left: 0; } .feature-six { top: 22%; left: 2%; }
+.auth-visual-note { max-width: 440px; font-size: 14px; line-height: 1.6; margin: 0; }
+@media (max-width: 900px) { .auth-page { grid-template-columns: 1fr; padding: 24px 0; } .auth-visual { display: none; } }

@@ -14,6 +14,8 @@ from backend.study_plan_api import router as study_plan_router
 from backend.recommendation_api import router as recommendation_router
 from backend.rag_api import router as rag_router
 from backend.auth.auth_api import router as auth_router
+from backend.documents_api import router as documents_router
+from backend.dashboard_api import router as dashboard_router
 
 # ----------------------------------------------------
 # Create Database Tables
@@ -26,7 +28,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Multimodal Learning Assistant API",
     description="Backend API for Multimodal Learning Assistant",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # ----------------------------------------------------
@@ -47,6 +49,8 @@ app.add_middleware(
 # Register Routers
 # ----------------------------------------------------
 app.include_router(upload_router)
+app.include_router(documents_router)
+app.include_router(dashboard_router)
 app.include_router(chat_router)
 app.include_router(summary_router)
 app.include_router(quiz_router)
