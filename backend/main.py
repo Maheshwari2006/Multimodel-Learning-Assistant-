@@ -1,10 +1,9 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Database
 from backend.database.database import Base, engine
 
-# Routers
 from backend.upload_api import router as upload_router
 from backend.chat_api import router as chat_router
 from backend.summary_api import router as summary_router
@@ -17,26 +16,19 @@ from backend.auth.auth_api import router as auth_router
 from backend.documents_api import router as documents_router
 from backend.dashboard_api import router as dashboard_router
 
-# ----------------------------------------------------
-# Create Database Tables
-# ----------------------------------------------------
+
 Base.metadata.create_all(bind=engine)
 
-# ----------------------------------------------------
-# FastAPI App
-# ----------------------------------------------------
 app = FastAPI(
     title="Multimodal Learning Assistant API",
     description="Backend API for Multimodal Learning Assistant",
     version="2.0.0",
 )
 
-# ----------------------------------------------------
-# CORS Configuration
-# ----------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://multimodal-learning-assistant.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
@@ -45,9 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------------------------------------------
-# Register Routers
-# ----------------------------------------------------
+# Register API routers
 app.include_router(upload_router)
 app.include_router(documents_router)
 app.include_router(dashboard_router)
@@ -60,18 +50,14 @@ app.include_router(recommendation_router)
 app.include_router(rag_router)
 app.include_router(auth_router, tags=["Authentication"])
 
-# ----------------------------------------------------
-# Root Endpoint
-# ----------------------------------------------------
+
 @app.get("/")
 def root():
     return {
         "message": "Multimodal Learning Assistant API Running Successfully"
     }
 
-# ----------------------------------------------------
-# Health Check
-# ----------------------------------------------------
+
 @app.get("/health")
 def health():
     return {
