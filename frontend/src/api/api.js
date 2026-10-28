@@ -61,4 +61,3 @@ export function errorMessage(
 }
 
 export default api;
-s
