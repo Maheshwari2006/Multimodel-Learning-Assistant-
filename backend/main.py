@@ -1,4 +1,6 @@
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,25 +19,33 @@ from backend.documents_api import router as documents_router
 from backend.dashboard_api import router as dashboard_router
 
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="Multimodal Learning Assistant API",
     description="Backend API for Multimodal Learning Assistant",
     version="2.0.0",
 )
 
+# CORS configuration
+allowed_origins = [
+    "https://multimodal-learning-assistant.vercel.app",
+    "https://multimodal-learning-assistant-6biloys96-innovators-f783.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Optionally allow the configured frontend origin in Vercel.
+frontend_origin = os.getenv("FRONTEND_ORIGIN")
+if frontend_origin and frontend_origin not in allowed_origins:
+    allowed_origins.append(frontend_origin.rstrip("/"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://multimodal-learning-assistant.vercel.app",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Register API routers
 app.include_router(upload_router)
@@ -60,6 +70,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {
-        "status": "healthy"
-    }
+    return {"status": "healthy"}
+
+if os.getenv("CREATE_TABLES_ON_STARTUP", "false").lower() == "true":
+    Base.metadata.create_all(bind=engine)
