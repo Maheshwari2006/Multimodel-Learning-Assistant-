@@ -3,7 +3,6 @@
 React + Vite frontend, FastAPI + SQLite backend, Ollama (`llama3`) for the AI.
 One uploaded document powers: **Upload → Extract → Chat → Summary → Quiz → Flashcards → Study Plan → Recommendations**.
 
-Demo Link : https://multimodel-learning-assistant.vercel.app/
 
 
 ## Run it
