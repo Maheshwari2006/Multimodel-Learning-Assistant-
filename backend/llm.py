@@ -6,8 +6,6 @@ import ollama
 from google import genai
 from google.genai import types
 
-
-# Use Gemini on Vercel and local Ollama on your computer.
 LLM_PROVIDER = os.getenv(
     "LLM_PROVIDER",
     "gemini" if os.getenv("VERCEL") else "local"
@@ -37,7 +35,6 @@ class LLM:
         self.client = None
         self.model = None
 
-        print("========== LLM CONFIGURATION ==========")
         print("LLM PROVIDER:", self.provider)
 
         if self.provider == "local":
@@ -60,7 +57,6 @@ class LLM:
             self.client = genai.Client(api_key=api_key)
 
         print("LLM MODEL:", self.model)
-        print("=======================================")
 
     def chat(
         self,
