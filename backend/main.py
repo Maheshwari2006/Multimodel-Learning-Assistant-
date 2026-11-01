@@ -19,7 +19,6 @@ from backend.auth.auth_api import router as auth_router
 from backend.documents_api import router as documents_router
 from backend.dashboard_api import router as dashboard_router
 
-
 app = FastAPI(
     title="Multimodal Learning Assistant API",
     description="Backend API for Multimodal Learning Assistant",
@@ -43,7 +42,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_origin_regex=(
         r"https://(?:multimodal|multimodel)-learning-assistant"
-        r"-[a-zA-Z0-9-]+\.vercel\.app"
+        r"(?:-[a-zA-Z0-9-]+)?\.vercel\.app"
     ),
     allow_credentials=True,
     allow_methods=["*"],
