@@ -6,6 +6,7 @@ import ollama
 from google import genai
 from google.genai import types
 
+
 LLM_PROVIDER = os.getenv(
     "LLM_PROVIDER",
     "gemini" if os.getenv("VERCEL") else "local"
@@ -15,6 +16,7 @@ LOCAL_OLLAMA_HOST = "http://127.0.0.1:11434"
 LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "llama3:latest")
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 OLLAMA_TIMEOUT = 120
 
@@ -26,6 +28,7 @@ class LLMUnavailable(Exception):
 class LLM:
 
     def __init__(self):
+
         if LLM_PROVIDER not in ("local", "gemini"):
             raise ValueError(
                 "LLM_PROVIDER must be either 'local' or 'gemini'"
@@ -38,6 +41,7 @@ class LLM:
         print("LLM PROVIDER:", self.provider)
 
         if self.provider == "local":
+
             self.model = LOCAL_MODEL
 
             self.client = ollama.Client(
@@ -46,6 +50,7 @@ class LLM:
             )
 
         elif self.provider == "gemini":
+
             api_key = os.getenv("GEMINI_API_KEY", "").strip()
 
             if not api_key:
@@ -54,7 +59,10 @@ class LLM:
                 )
 
             self.model = GEMINI_MODEL
-            self.client = genai.Client(api_key=api_key)
+
+            self.client = genai.Client(
+                api_key=api_key
+            )
 
         print("LLM MODEL:", self.model)
 
@@ -66,7 +74,9 @@ class LLM:
     ):
 
         try:
+
             if self.provider == "local":
+
                 return self._local_chat(
                     messages,
                     json_mode,
@@ -80,6 +90,7 @@ class LLM:
             )
 
         except Exception as exc:
+
             traceback.print_exc()
 
             raise LLMUnavailable(
@@ -87,7 +98,12 @@ class LLM:
                 f"{type(exc).__name__}: {exc}"
             ) from exc
 
-    def _local_chat(self, messages, json_mode, temperature):
+    def _local_chat(
+        self,
+        messages,
+        json_mode,
+        temperature
+    ):
 
         kwargs = {
             "options": {
@@ -107,16 +123,23 @@ class LLM:
 
         return response["message"]["content"]
 
-    def _gemini_chat(self, messages, json_mode, temperature):
+    def _gemini_chat(
+        self,
+        messages,
+        json_mode,
+        temperature
+    ):
 
         system_instructions = []
         contents = []
 
         for message in messages:
+
             role = message.get("role", "user")
             content = message.get("content", "")
 
             if isinstance(content, list):
+
                 content = "\n".join(
                     str(item) for item in content
                 )
@@ -124,25 +147,39 @@ class LLM:
             content = str(content)
 
             if role == "system":
+
                 system_instructions.append(content)
                 continue
 
             if role in ("assistant", "model"):
+
                 gemini_role = "model"
+
             else:
+
                 gemini_role = "user"
 
             contents.append({
                 "role": gemini_role,
-                "parts": [{"text": content}]
+                "parts": [
+                    {"text": content}
+                ]
             })
+
+        response_mime_type = (
+            "application/json"
+            if json_mode
+            else "text/plain"
+        )
 
         config = types.GenerateContentConfig(
             temperature=temperature,
-            system_instruction="\n\n".join(system_instructions)
-            if system_instructions else None,
-            response_mime_type="application/json"
-            if json_mode else "text"
+            system_instruction=(
+                "\n\n".join(system_instructions)
+                if system_instructions
+                else None
+            ),
+            response_mime_type=response_mime_type
         )
 
         response = self.client.models.generate_content(
@@ -152,6 +189,7 @@ class LLM:
         )
 
         if not response.text:
+
             raise LLMUnavailable(
                 "Gemini returned an empty response."
             )
