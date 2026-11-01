@@ -1,22 +1,18 @@
 
 import axios from "axios";
 
-// Local development uses FastAPI on localhost.
-// Production uses the Vercel backend configured in Vercel Environment Variables.
 const API_BASE_URL = (
     import.meta.env.VITE_API_BASE_URL ||
-    "http://127.0.0.1:8000"
+    (import.meta.env.PROD
+        ? "https://multimodel-learning-backend.vercel.app"
+        : "http://127.0.0.1:8000")
 ).replace(/\/+$/, "");
 
 const api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 120000, // Allow up to 2 minutes for AI requests.
-    headers: {
-        "Content-Type": "application/json",
-    },
+    timeout: 120000,
 });
 
-// Attach the authentication token to requests.
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem("token");
@@ -30,7 +26,6 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Handle authentication and server errors.
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -50,7 +45,6 @@ api.interceptors.response.use(
     }
 );
 
-// Convert API errors into readable messages.
 export function errorMessage(
     err,
     fallback = "Something went wrong. Please try again."
@@ -71,7 +65,9 @@ export function errorMessage(
         }
 
         if (Array.isArray(detail) && detail.length) {
-            return detail.map((item) => item.msg || String(item)).join(" ");
+            return detail
+                .map((item) => item.msg || String(item))
+                .join(" ");
         }
 
         if (err.response.status === 401) {
@@ -91,14 +87,14 @@ export function errorMessage(
         }
 
         if (err.response.status >= 500) {
-            return "The server encountered an error. Check the backend logs.";
+            return "The server encountered an error. Check backend logs.";
         }
 
         return fallback;
     }
 
     if (err?.request) {
-        return "Cannot reach the backend. Check the API URL, CORS settings, and backend availability.";
+        return "Cannot reach the backend. Check the API URL and CORS settings.";
     }
 
     return err?.message || fallback;
