@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.database import Base, engine
+from backend.database import models
 
 from backend.upload_api import router as upload_router
 from backend.chat_api import router as chat_router
@@ -25,7 +26,6 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Production and local frontend URLs
 allowed_origins = [
     "https://multimodal-learning-assistant.vercel.app",
     "https://multimodel-learning-assistant.vercel.app",
@@ -41,19 +41,15 @@ if frontend_origin and frontend_origin not in allowed_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-
-    # Allow Vercel preview deployments with either spelling
     allow_origin_regex=(
         r"https://(?:multimodal|multimodel)-learning-assistant"
         r"-[a-zA-Z0-9-]+\.vercel\.app"
     ),
-
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register API routers
 app.include_router(upload_router)
 app.include_router(documents_router)
 app.include_router(dashboard_router)
