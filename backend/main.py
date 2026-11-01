@@ -25,12 +25,10 @@ app = FastAPI(
     version="2.0.0",
 )
 
-
-# CORS configuration
+# Production and local frontend URLs
 allowed_origins = [
-    "https://multimodel-learning-assistant.vercel.app",
     "https://multimodal-learning-assistant.vercel.app",
-    "https://multimodal-learning-assistant-6biloys96-innovators-f783.vercel.app",
+    "https://multimodel-learning-assistant.vercel.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
@@ -40,16 +38,20 @@ frontend_origin = os.getenv("FRONTEND_ORIGIN", "").rstrip("/")
 if frontend_origin and frontend_origin not in allowed_origins:
     allowed_origins.append(frontend_origin)
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://multimodel-learning-assistant-[a-zA-Z0-9-]+\.vercel\.app",
+
+    # Allow Vercel preview deployments with either spelling
+    allow_origin_regex=(
+        r"https://(?:multimodal|multimodel)-learning-assistant"
+        r"-[a-zA-Z0-9-]+\.vercel\.app"
+    ),
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # Register API routers
 app.include_router(upload_router)
@@ -77,6 +79,5 @@ def health():
     return {"status": "healthy"}
 
 
-# Database table creation (optional)
 if os.getenv("CREATE_TABLES_ON_STARTUP", "false").lower() == "true":
     Base.metadata.create_all(bind=engine)
