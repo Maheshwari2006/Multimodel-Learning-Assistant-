@@ -1,7 +1,9 @@
+
 """Shared helpers for the API routers (ownership checks, chunk loading, error mapping, serializers)."""
 import json
 import logging
 import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -13,13 +15,16 @@ from backend.database import models
 from backend.database.database import SessionLocal
 from backend.learning_logic import GenerationError
 from backend.llm import LLMUnavailable
+from backend.storage import download_from_storage
 
 log = logging.getLogger("learning_assistant")
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = Path(os.getenv("DOCUMENT_UPLOAD_DIR", ROOT_DIR / "uploads" / "documents"))
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "25"))
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+if not (os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY")):
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def iso(dt: Optional[datetime]) -> Optional[str]:
@@ -34,7 +39,7 @@ def jloads(value, default=None):
 
 
 def map_llm_errors(fn):
-    """Run ``fn`` and translate model failures into clear HTTP errors."""
+    """Run fn and translate model failures into clear HTTP errors."""
     try:
         return fn()
     except LLMUnavailable as exc:
@@ -43,7 +48,6 @@ def map_llm_errors(fn):
         raise HTTPException(status_code=502, detail=f"{exc} Please try again.")
 
 
-# ------------------------------------------------------------------ documents
 def doc_dict(d: models.Document) -> Dict:
     return {
         "id": d.id,
@@ -115,97 +119,154 @@ def docs_label(docs: Sequence[models.Document], limit: int = 2) -> str:
     return " + ".join(names[:limit]) + f" +{len(names) - limit} more"
 
 
-# ------------------------------------------------------------------ background processing
 def process_document(doc_id: int) -> None:
     """Extract -> chunk -> persist. Runs after the upload response, with its own DB session."""
     from document_intelligence import ExtractionError, build_chunks, extract_file
 
     db = SessionLocal()
+    temp_path = None
+
     try:
         doc = db.get(models.Document, doc_id)
         if doc is None:
             return
+
         doc.status, doc.error = "processing", None
         db.commit()
+
         try:
-            result = extract_file(str(UPLOAD_DIR / doc.stored_name), doc.ext)
+            if os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"):
+                file_data = download_from_storage(doc.stored_name)
+
+                with tempfile.NamedTemporaryFile(
+                    suffix=doc.ext,
+                    delete=False
+                ) as temp_file:
+                    temp_path = temp_file.name
+                    temp_file.write(file_data)
+
+                source_path = temp_path
+            else:
+                source_path = str(UPLOAD_DIR / doc.stored_name)
+
+            result = extract_file(source_path, doc.ext)
             chunks = build_chunks(result.units)
+
             if not chunks:
                 raise ExtractionError("No readable text was found in this file.")
-            db.query(models.DocumentChunk).filter(models.DocumentChunk.document_id == doc.id).delete()
+
+            db.query(models.DocumentChunk).filter(
+                models.DocumentChunk.document_id == doc.id
+            ).delete()
+
             db.bulk_save_objects([
                 models.DocumentChunk(
-                    document_id=doc.id, idx=c["idx"], text=c["text"], page=c["page"],
-                    section=(c["section"] or None) and str(c["section"])[:300], kind=c["kind"],
+                    document_id=doc.id,
+                    idx=c["idx"],
+                    text=c["text"],
+                    page=c["page"],
+                    section=(c["section"] or None) and str(c["section"])[:300],
+                    kind=c["kind"],
                 )
                 for c in chunks
             ])
+
             doc.status = "ready"
             doc.page_count = result.page_count
             doc.chunk_count = len(chunks)
             doc.char_count = sum(len(c["text"]) for c in chunks)
             doc.ocr_used = result.ocr_used
             doc.warnings = json.dumps(result.warnings)
+
         except ExtractionError as exc:
             doc.status, doc.error = "failed", str(exc)
-        except Exception:  # noqa: BLE001 - never leave a document stuck in "processing"
+
+        except Exception:
             log.exception("Document %s failed to process", doc_id)
             doc.status = "failed"
             doc.error = "Unexpected error while reading this file. Check the backend log for details."
+
         doc.processed_at = datetime.utcnow()
         db.commit()
+
     finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
         db.close()
 
 
-# ------------------------------------------------------------------ retrieval + shared helpers
 def text_chunks(text: str, name: str = "Pasted text") -> List[Dict]:
     """Turn pasted text into the same chunk dicts that stored documents produce."""
     from document_intelligence import Unit, build_chunks
 
     return [
-        {"document_id": None, "document_name": name, "idx": c["idx"], "text": c["text"],
-         "page": None, "section": None, "kind": c["kind"]}
+        {
+            "document_id": None,
+            "document_name": name,
+            "idx": c["idx"],
+            "text": c["text"],
+            "page": None,
+            "section": None,
+            "kind": c["kind"],
+        }
         for c in build_chunks([Unit(text=text.strip())])
     ]
 
 
 def spread(chunks: Sequence[Dict], n: int) -> List[Dict]:
-    """``n`` chunks evenly spread through the material (used for overview-style questions)."""
+    """Return n chunks evenly spread through the material."""
     chunks = list(chunks)
     if len(chunks) <= n:
         return chunks
-    return [chunks[round(i * (len(chunks) - 1) / (n - 1))] for i in range(n)] if n > 1 else chunks[:1]
+    return [
+        chunks[round(i * (len(chunks) - 1) / (n - 1))]
+        for i in range(n)
+    ] if n > 1 else chunks[:1]
 
 
-_OVERVIEW = ("summar", "overview", "main point", "key point", "outline", "what is this", "what's this",
-             "about this", "gist", "tl;dr", "सारांश", "सार ")
+_OVERVIEW = (
+    "summar", "overview", "main point", "key point", "outline",
+    "what is this", "what's this", "about this", "gist", "tl;dr",
+    "सारांश", "सार "
+)
 
 
 def retrieve(chunks: Sequence[Dict], query: str, k: int = 6, max_total: int = 8) -> List[Dict]:
-    """BM25 retrieval. Guarantees every selected document contributes and falls back to an even spread
-    for overview questions or when no keyword matches (e.g. 'what is this about?')."""
+    """Retrieve relevant chunks and ensure selected documents contribute."""
     from document_intelligence import BM25Index
 
     chunks = list(chunks)
     if not chunks:
         return []
+
     q = query.lower()
+
     if any(w in q for w in _OVERVIEW):
         return spread(chunks, min(max_total, len(chunks)))
+
     index = BM25Index([c["text"] for c in chunks])
     ranked = index.top_k(query, k)
     picked = [i for i, _ in ranked]
+
     if not picked:
         return spread(chunks, min(4, len(chunks)))
+
     doc_ids = {c["document_id"] for c in chunks}
-    if len(doc_ids) > 1:                                    # multi-document questions / comparisons
+
+    if len(doc_ids) > 1:
         scores = index.score(query)
+
         for doc in doc_ids:
             if any(chunks[i]["document_id"] == doc for i in picked):
                 continue
-            own = sorted((i for i, c in enumerate(chunks) if c["document_id"] == doc), key=lambda i: scores[i], reverse=True)
+
+            own = sorted(
+                (i for i, c in enumerate(chunks) if c["document_id"] == doc),
+                key=lambda i: scores[i],
+                reverse=True,
+            )
             picked.extend(own[:2])
+
     picked = picked[:max_total]
     return [chunks[i] for i in sorted(set(picked), key=picked.index)]
 
@@ -215,15 +276,26 @@ def ids_dump(ids) -> str:
 
 
 def source_chunks(db: Session, user, document_ids, text: Optional[str], require_one: bool = True):
-    """Resolve 'selected documents or pasted text' to (docs, chunks, label)."""
+    """Resolve selected documents or pasted text to (docs, chunks, label)."""
     if document_ids:
         docs = get_user_docs(db, user, document_ids)
         chunks = load_chunks(db, docs)
+
         if not chunks:
-            raise HTTPException(status_code=409, detail="The selected documents contain no readable text.")
+            raise HTTPException(
+                status_code=409,
+                detail="The selected documents contain no readable text."
+            )
+
         return docs, chunks, docs_label(docs)
+
     if text and text.strip():
         return [], text_chunks(text), "Pasted text"
+
     if require_one:
-        raise HTTPException(status_code=400, detail="Select at least one document (or provide some text).")
+        raise HTTPException(
+            status_code=400,
+            detail="Select at least one document (or provide some text)."
+        )
+
     return [], [], ""
